@@ -13,9 +13,9 @@ EasyNex myNex(Serial);
 
 struct Programa 
 {
-  String nombre;
-  int curva[10][2]; //[Instante][Temperatura Deseada, -Grados/min]
-  
+  String nombre; //Tipo de programa
+  int tempInicial; //En grados
+  int tiempo; //En minutos
 };
 
 
@@ -54,9 +54,9 @@ void setup() {
 
   // Declaramos los valores de la curva de FIBRA //
 
-  fibra.nombre = "fibra";
-  for(int i = 0; i < 10; i++){}
-
+  fibra.programa = "fibra";
+  fibra.tempInicial = 90;
+  fibra.tiempo = 90;
 }
 
 void loop() {
