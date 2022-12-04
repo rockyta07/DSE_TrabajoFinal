@@ -9,6 +9,7 @@
 #define TEMP  60 //En grados
 /////////////////////////////////////////
 
+////////////////////////////////// VARIABLES //////////////////////////////////
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 EasyNex myNex(Serial);
 
@@ -25,8 +26,14 @@ Timer timer;
 int temperaturaSensor;
 int temperaturaDeseada;
 int tiempoIncialms;
+bool precalentado = false;
+String modoSeleccionado;
 
+///////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////// FUNCIONES //////////////////////////////////
+
+// Para seleccionar la temperatura menual = modo normal
 void hornear(int temperaturaSel) {
   temperaturaDeseada = temperaturaSel;
   //temperaturaSensor = (int) mlx.readObjectTempC();
@@ -40,6 +47,10 @@ void hornear(int temperaturaSel) {
   Serial.print(temperaturaSensor);
   Serial.println();
 }
+
+
+///////////////////////////////////////////////////////////////////////////////
+
 
 
 void setup() {
@@ -56,14 +67,37 @@ void setup() {
     while (1);
   };
 
-  Programa fibra;
 
+  // DEFINIMOS LOS STRUCT //
+  // Programa FIBRA //
+  Programa fibra; // Creamos un struct tipo programa 
+  
   // Declaramos los valores de la curva de FIBRA //
-
-  fibra.programa = "fibra";
+  fibra.nombre = "fibra";
   fibra.tempInicial = 90;
   fibra.tiempo = 90;
   fibra.progresion = 1;
+
+  // Programa NORMAL //
+  Programa normal; // Creamos un struct tipo normal
+
+  // Declaramos los valores de la curva de NORMAL //
+  normal.nombre = "normal";
+  normal.tempInicial = 90;
+  normal.tiempo = 90;
+
+  // SELECCIONAMOS EL MODO //
+  // ...
+  // modoSeleccionado = Programa.nombre;
+  modoSeleccionado = fibra.nombre; //Por ejemplo
+
+  if (modoSeleccionado.compareTo(fibra.nombre)){
+      temperaturaDeseada = fibra.tempInicial;
+  } else { //Por defecto el modo es el normal
+      temperaturaDeseada = myNex.readNumber("n0.val");
+  }
+
+  
 }
 
 void loop() {
@@ -89,9 +123,9 @@ void loop() {
   }
   myNex.NextionListen();
   myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
-  temperaturaDeseada = myNex.readNumber("n0.val");
-  hornear(temperaturaDeseada);
+  //temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
 
-
-
+  
+  // Precalentamos el horno 
+  hornear(temperaturaDeseada); //Si es modo normal se selecciona la temperatura, si no lo es
 }
