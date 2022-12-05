@@ -1,6 +1,7 @@
 #include <EasyNextionLibrary.h>
 #include <trigger.h>
 #include <Adafruit_MLX90614.h>
+#include <timer.h>
 
 #define pinRele 4
 
@@ -17,11 +18,14 @@ struct Programa
   String nombre; //Tipo de programa
   int tempInicial; //En grados
   int tiempo; //En minutos
+  int progresion; //En grados/minuto
 };
 
-
+//Variables globales
+Timer timer;
 int temperaturaSensor;
 int temperaturaDeseada;
+int tiempoIncialms;
 bool precalentado = false;
 String modoSeleccionado;
 
@@ -53,6 +57,8 @@ void setup() {
   myNex.begin(9600);
   pinMode(pinRele, OUTPUT); //Rele
   digitalWrite(pinRele, HIGH); //Abrimos el rele por seguridad
+  timer.clearInterval();
+
 
   Serial.begin(9600);
 
@@ -70,6 +76,7 @@ void setup() {
   fibra.nombre = "fibra";
   fibra.tempInicial = 90;
   fibra.tiempo = 90;
+  fibra.progresion = 1;
 
   // Programa NORMAL //
   Programa normal; // Creamos un struct tipo normal
@@ -96,6 +103,24 @@ void setup() {
 void loop() {
   //temperaturaSensor = (int) mlx.readObjectTempC();
   temperaturaSensor = TEMP;
+  int modo = 0 //modo selecionado 0 - normal 1 - curvas
+  switch (modo) {
+    case 0:
+      if (/*switch de la pantalla*/ true) {
+        if(timer.isStopped == true) {
+          timer.start();
+          tiempoIncialms = 0 /*Leer de pantalla*/
+          }
+        while (tiempoIncialms > timer.getElapsedTime() && /*switch de la pantalla true*/) {
+          temperaturaDeseada = myNex.readNumber("n0.val");
+          hornear(temperaturaDeseada); 
+        }
+        break;
+      }
+    case 1:
+      /*Codigo curvas*/
+
+  }
   myNex.NextionListen();
   myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
   //temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
