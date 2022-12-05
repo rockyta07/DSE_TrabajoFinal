@@ -1,0 +1,5 @@
+{
+    "configuration": "cpu=atmega328",
+    "board": "arduino:avr:nano",
+    "sketch": "CodigoArduino\\horno_1\\horno_1.ino"
+}
