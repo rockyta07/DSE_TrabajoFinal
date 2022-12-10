@@ -3,6 +3,8 @@
 #include <Adafruit_MLX90614.h>
 
 #define pinRele 4
+////curva///
+NexWaveform curva = NexWaveform(0,1,"curva");
 
 ///////// Para probar sin horno /////////
 #define TEMP  60 //En grados
@@ -61,10 +63,16 @@ void setup() {
 
 void loop() {
   //temperaturaSensor = (int) mlx.readObjectTempC();
+  
+
   temperaturaSensor = TEMP;
+  
   myNex.NextionListen();
   myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
   temperaturaDeseada = myNex.readNumber("n0.val");
+   ////Curva////
+  curva.addValue(0,temperaturaSensor);
+  curva.addValue(0,temperaturaDeseada);
   hornear(temperaturaDeseada);
 
 
