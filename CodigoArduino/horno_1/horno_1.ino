@@ -55,7 +55,7 @@ void updateHeaterState(int temperaturaSel)
 }
 
 void safetyWatchdog() {
-    if(temperaturaSensor > 150) 
+    if(temperaturaSensor > 150) myNex.writeStr("page page 3");
   }
 
 void updateCurveTemp() {
@@ -90,9 +90,9 @@ void setup()
 
 void loop()
 {
-  myNex.NextionListen();
-  // temperaturaSensor = (int) mlx.readObjectTempC();
-  temperaturaSensor = TEMP;
+  
+  temperaturaSensor = (int) mlx.readObjectTempC();
+  //temperaturaSensor = TEMP;
   modoSeleccionado = myNex.readNumber("cb0.val");
     switch (modoSeleccionado)
     {
@@ -111,12 +111,12 @@ void loop()
         }
         else
         {
-          updateHeaterState(0); //Desactivamos el calefactor por seguridad
+          //updateHeaterState(0); //Desactivamos el calefactor por seguridad
           myNex.writeNum("sw0.val", 0); // Como el tiempo ha terminado reseteamos el switch a 0.
         } 
       }
       else {
-        updateHeaterState(0); //Desactivamos el calefactor por seguridad
+        //updateHeaterState(0); //Desactivamos el calefactor por seguridad
         timerMain.stop(); //Reseteamos el temporizador
       }
       break;
@@ -143,14 +143,15 @@ void loop()
         }
     }
     else {
-        updateHeaterState(0); //Desactivamos el calefactor por seguridad
+        //updateHeaterState(0); //Desactivamos el calefactor por seguridad
         timerMain.stop();
         timerCurva.stop();
       }
      break;
     
     }
-
-    myNex.writeNum("n1.val", (uint32_t)temperaturaSensor);
+    myNex.NextionListen();  
+    myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
+    myNex.writeNum("sw0.val", 0);
     // temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
   }
