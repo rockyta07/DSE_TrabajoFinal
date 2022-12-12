@@ -16,12 +16,12 @@ EasyNex myNex(Serial);
 struct Programa
 {
   String nombre;   // Tipo de programa
-  int tempInicial; // En grados
+  int tempObj; // En grados
   int tiempo;      // En minutos
   int progresion;  // En grados/minuto
 };
 
-Programa *programas = malloc(10 * sizeof(Programa)); // Array que almacena las curvas
+Programa* programas = (Programa*) malloc(10 * sizeof(Programa)); // Array que almacena las curvas
 // Variables globales
 Timer timerMain;
 Timer timerCurva;
@@ -29,7 +29,8 @@ int temperaturaSensor;
 int temperaturaDeseada;
 int tiempoFuncionamiento;
 int modoSeleccionado;
-int programaSelecionado;
+int programaSeleccionado;
+boolean falloSeguridad = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,8 +54,12 @@ void updateHeaterState(int temperaturaSel)
   Serial.println();
 }
 
+void safetyWatchdog() {
+    if(temperaturaSensor > 150) 
+  }
+
 void updateCurveTemp() {
-  temperaturaDeseada += programas[programaSelecionado].progresion;  
+  temperaturaDeseada += programas[programaSeleccionado].progresion;  
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -71,19 +76,14 @@ void setup()
 
   Serial.begin(9600);
 
-  if (!mlx.begin())
-  {
-    Serial.println("Error de conexion.");
-    while (1)
-      ;
-  };
+  if (!mlx.begin()) falloSeguridad = true; 
 
   modoSeleccionado = 0; // modo selecionado 0 - normal 1 - curvas
 
   // Declaramos los programas en el array progrmas
   /****FIBRA****/
   programas[0].nombre = "fibra";
-  programas[0].tempInicial = 90;
+  programas[0].tempObj = 90;
   programas[0].progresion = 1;
   /****OTRO****/
 }
@@ -93,52 +93,64 @@ void loop()
   myNex.NextionListen();
   // temperaturaSensor = (int) mlx.readObjectTempC();
   temperaturaSensor = TEMP;
-  if (myNex.readNumber("sw0.val") == 1)
-  { // Comprobamos el estado del interruptor
+  modoSeleccionado = myNex.readNumber("cb0.val");
     switch (modoSeleccionado)
     {
     case 0:
-      // Switch on-off pantalla
-      if (timerMain.isStopped == true)
+      if (myNex.readNumber("sw0.val") == 1) {
+        if (timerMain.isStopped() == true)
+        {
+          timerMain.start();
+          tiempoFuncionamiento = myNex.readNumber("") * 60000; // Leemos pantalla y lo pasamos a minutos
+        }
+        timerMain.update();
+        if (tiempoFuncionamiento > timerMain.getElapsedTime())
+        {
+          temperaturaDeseada = myNex.readNumber("n0.val");
+          updateHeaterState(temperaturaDeseada);
+        }
+        else
+        {
+          updateHeaterState(0); //Desactivamos el calefactor por seguridad
+          myNex.writeNum("sw0.val", 0); // Como el tiempo ha terminado reseteamos el switch a 0.
+        } 
+      }
+      else {
+        updateHeaterState(0); //Desactivamos el calefactor por seguridad
+        timerMain.stop(); //Reseteamos el temporizador
+      }
+      break;
+  case 1: // CURVAS
+   /*Indicar programa*/
+    programaSeleccionado = myNex.readNumber("cb1.val");
+    myNex.writeNum("n2.val", programas[programaSeleccionado].tempObj);
+    myNex.writeNum("n3.val", programas[programaSeleccionado].progresion);
+    myNex.writeNum("n4.val", programas[programaSeleccionado].tiempo);
+    if (myNex.readNumber("sw0.val") == 1) {
+      if (timerMain.isStopped() == true)
       {
         timerMain.start();
-        tiempoFuncionamiento = myNex.readNumber("") * 60000; // Leemos pantalla y lo pasamos a minutos
+        timerCurva.start();
+        tiempoFuncionamiento = programas[programaSeleccionado].tiempo * 60000;
       }
-      timerMain.update();
-      if (tiempoFuncionamiento > timerMain.getElapsedTime())
-      {
-        temperaturaDeseada = myNex.readNumber("n0.val");
-        updateHeaterState(temperaturaDeseada);
-      }
-      else
-      {
+      tiempoFuncionamiento -= timerMain.getElapsedTime();
+      myNex.writeNum("n0.val", (int) (tiempoFuncionamiento/60000));
+      if (tiempoFuncionamiento > 0) updateHeaterState(temperaturaDeseada);
+      else {
+        myNex.writeNum("sw0.val", 0);
+        
+        
+        }
+    }
+    else {
+        updateHeaterState(0); //Desactivamos el calefactor por seguridad
         timerMain.stop();
-        myNex.writeNumber("sw0.val", 0); // Como el tiempo ha terminado reseteamos el switch a 0.
+        timerCurva.stop();
       }
-
-      break;
-    }
-  case 1: // CURVAS
-    if (timerMain.isStopped == true)
-    {
-      programaSeleccionado = 0; /*Indicar programa*/
-      while (temperaturaSensor < programas[programaSeleccionado].tempInicial())
-      { // Precalentado
-        updateHeaterState(programas[programaSeleccionado].tempInicial());
-        temperaturaSensor = TEMP;
-      }
-
-      timerMain.start();
-      timerCurva.start();
-    }
-    if (tiempoFuncionamiento > timerMain.getElapsedTime())
-    {
-      temperaturaDeseada = myNex.readNumber("n0.val");
-      updateHeaterState(temperaturaDeseada);
-      break;
+     break;
+    
     }
 
     myNex.writeNum("n1.val", (uint32_t)temperaturaSensor);
     // temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
   }
-}
