@@ -42,9 +42,9 @@ void updateHeaterState(int temperaturaSel)
   temperaturaDeseada = temperaturaSel;
   temperaturaSensor = (int) mlx.readObjectTempC();
   if (temperaturaSensor < temperaturaSel)
-    digitalWrite(pinRele, HIGH); // Apagamos la resistencia
-  else if (temperaturaSensor >= temperaturaSel - 5)
-    digitalWrite(pinRele, LOW); // Encendemos la resistencia
+    digitalWrite(pinRele,LOW); // Encendemos la resistencia
+  else if (temperaturaSensor >= temperaturaSel - 2)
+    digitalWrite(pinRele, HIGH); // Apgamos la resistencia
 
   Serial.print("HORNO EN FUNCIONAMIENTO, temperatura objetivo: ");
   Serial.print(temperaturaSel);
@@ -100,7 +100,7 @@ void loop()
         if (timerMain.isStopped() == true)
         {
           timerMain.start();
-          tiempoFuncionamiento = myNex.readNumber("") * 60000; // Leemos pantalla y lo pasamos a minutos
+          tiempoFuncionamiento = myNex.readNumber("n2.val") * 60000; // Leemos pantalla y lo pasamos a minutos
         }
         timerMain.update();
         if (tiempoFuncionamiento > timerMain.getElapsedTime())
@@ -111,7 +111,8 @@ void loop()
         else
         {
           //updateHeaterState(0); //Desactivamos el calefactor por seguridad
-          myNex.writeNum("sw0.val", 0); // Como el tiempo ha terminado reseteamos el switch a 0.
+          myNex.writeNum("sw0.val", 0);
+          digitalWrite(pinRele, HIGH); // Como el tiempo ha terminado reseteamos el switch a 0.
         } 
       }
       else {
