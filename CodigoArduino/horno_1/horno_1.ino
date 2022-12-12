@@ -40,12 +40,11 @@ boolean falloSeguridad = false;
 void updateHeaterState(int temperaturaSel)
 {
   temperaturaDeseada = temperaturaSel;
-  // temperaturaSensor = (int) mlx.readObjectTempC();
-  temperaturaSensor = TEMP;
+  temperaturaSensor = (int) mlx.readObjectTempC();
   if (temperaturaSensor < temperaturaSel)
-    digitalWrite(pinRele, LOW); // Apagamos la resistencia
+    digitalWrite(pinRele, HIGH); // Apagamos la resistencia
   else if (temperaturaSensor >= temperaturaSel - 5)
-    digitalWrite(pinRele, HIGH); // Encendemos la resistencia
+    digitalWrite(pinRele, LOW); // Encendemos la resistencia
 
   Serial.print("HORNO EN FUNCIONAMIENTO, temperatura objetivo: ");
   Serial.print(temperaturaSel);
@@ -152,6 +151,7 @@ void loop()
     }
     myNex.NextionListen();  
     myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
-    myNex.writeNum("sw0.val", 0);
+    delay(100);
+    //myNex.writeNum("sw0.val", 0);
     // temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
   }
