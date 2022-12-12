@@ -27,7 +27,7 @@ Timer timerMain;
 Timer timerCurva;
 int temperaturaSensor;
 int temperaturaDeseada;
-int tiempoFuncionamiento;
+long tiempoRestante;
 int modoSeleccionado;
 int programaSeleccionado;
 boolean falloSeguridad = false;
@@ -56,6 +56,10 @@ void safetyWatchdog() {
 void updateCurveTemp() {
   temperaturaDeseada += programas[programaSeleccionado].progresion;  
 }
+
+void updateTime() {
+ tiempoRestante--;
+}
 ///////////////////////////////////////////////////////////////////////////////
 
 void setup()
@@ -65,8 +69,9 @@ void setup()
   digitalWrite(pinRele, HIGH); // Abrimos el rele por seguridad
 
   // TIMERS
-  timerMain.clearInterval();
+  timerMain.setInterval(60000);
   timerCurva.setInterval(60000);
+  timerMain.setCallback(updateTime);
   timerCurva.setCallback(updateCurveTemp);
 
   Serial.begin(9600);
@@ -80,6 +85,7 @@ void setup()
   programas[0].nombre = "fibra";
   programas[0].tempObj = 90;
   programas[0].progresion = 1;
+   programas[0].tiempo = 90;
   /****OTRO****/
 }
 
@@ -96,13 +102,12 @@ void loop()
         if (timerMain.isStopped() == true)
         {
           timerMain.start();
-          tiempoFuncionamiento = myNex.readNumber("n2.val") * 60000; // Leemos pantalla y lo pasamos a minutos
+          tiempoRestante = myNex.readNumber("n2.val"); // Leemos pantalla y lo pasamos a minutos
         }
         timerMain.update();
-        tiempoFuncionamiento -= timerMain.getElapsedTime();
-        myNex.writeNum("n2.val", (uint32_t) (tiempoFuncionamiento/60000));
+        myNex.writeNum("n2.val", tiempoRestante);
         temperaturaDeseada = myNex.readNumber("n0.val");
-        if (tiempoFuncionamiento > 0) updateHeaterState(temperaturaDeseada);
+        if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
         
         else
         {
@@ -113,25 +118,29 @@ void loop()
       }
       else {
         //updateHeaterState(0); //Desactivamos el calefactor por seguridad
+        myNex.writeNum("sw0.val", 0);
         timerMain.stop(); //Reseteamos el temporizador
       }
       break;
   case 1: // CURVAS
    /*Indicar programa*/
-    programaSeleccionado = myNex.readNumber("cb1.val");
-    myNex.writeNum("n2.val", programas[programaSeleccionado].tempObj);
-    myNex.writeNum("n3.val", programas[programaSeleccionado].progresion);
-    myNex.writeNum("n4.val", programas[programaSeleccionado].tiempo);
+    programaSeleccionado = myNex.readNumber("cb1.val");  
+    
+      myNex.writeNum("n2.val", programas[programaSeleccionado].tempObj);
+      myNex.writeNum("n3.val", programas[programaSeleccionado].progresion);
+      myNex.writeNum("n4.val", programas[programaSeleccionado].tiempo); 
+    
+  
     if (myNex.readNumber("sw0.val") == 1) {
       if (timerMain.isStopped() == true)
       {
         timerMain.start();
         timerCurva.start();
-        tiempoFuncionamiento = programas[programaSeleccionado].tiempo * 60000;
+        tiempoRestante = programas[programaSeleccionado].tiempo;
       }
-      tiempoFuncionamiento -= timerMain.getElapsedTime();
-      myNex.writeNum("n0.val", (int) (tiempoFuncionamiento/60000));
-      if (tiempoFuncionamiento > 0) updateHeaterState(temperaturaDeseada);
+      tiempoRestante -= timerMain.getElapsedTime();
+      myNex.writeNum("n0.val", tiempoRestante);
+      if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
       else {
         myNex.writeNum("sw0.val", 0);
         digitalWrite(pinRele, HIGH);
@@ -143,6 +152,7 @@ void loop()
         //updateHeaterState(0); //Desactivamos el calefactor por seguridad
         timerMain.stop();
         timerCurva.stop();
+        myNex.writeNum("sw0.val", 0);
       }
      break;
     
