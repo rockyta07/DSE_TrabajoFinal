@@ -64,7 +64,7 @@ void exception(String mensajeExcepcion) {
 
 void updateTime() {
  tiempoRestante--;
- if(programaSeleccionado == 1) temperaturaDeseada += programas[programaSeleccionado].progresion;  //Actualizamos la curva
+ if(programaSeleccionado == 1 && temperaturaDeseada < programas[programaSeleccionado].tempObj) temperaturaDeseada += programas[programaSeleccionado].progresion;  //Actualizamos la curva
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -132,8 +132,8 @@ void loop()
         } 
       }
       else {
-        digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
         timerMain.stop(); //Reseteamos el temporizador
+        digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
       }
       break;
   case 1: // CURVAS
@@ -146,16 +146,19 @@ void loop()
     
   
     if (myNex.readNumber("sw0.val") == 1) {
+     
       if (timerMain.isStopped() == true)
       {
         timerMain.start();
         tiempoRestante = programas[programaSeleccionado].tiempo;
+        temperaturaDeseada = temperaturaSensor;
       }
       myNex.writeNum("n0.val", tiempoRestante);
+      myNex.writeNum("n5.val", temperaturaDeseada);
       if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
       else {
         myNex.writeNum("sw0.val", 0);
-        //digitalWrite(pinRele, HIGH);
+        digitalWrite(pinRele, HIGH);
         }
     }
     else {
@@ -163,6 +166,7 @@ void loop()
         timerMain.stop();
         digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
       }
+      
      break;
     
     }
