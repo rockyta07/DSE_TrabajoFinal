@@ -26,7 +26,6 @@ int temperaturaDeseada;
 long tiempoRestante;
 int modoSeleccionado;
 int programaSeleccionado;
-boolean falloSeguridad = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +44,11 @@ void updateHeaterState(int temperaturaSel)
 }
 
 void safetyWatchdog() {
-    if(temperaturaSensor > 150) myNex.writeStr("page page 3");
-    digitalWrite(pinRele, HIGH);
+    if(temperaturaSensor > 150) {
+      myNex.writeStr("page page 3");
+      digitalWrite(pinRele, HIGH);
+      delay(100);
+    }
   }
 
 void exception(String mensajeExcepcion) {
@@ -54,6 +56,7 @@ void exception(String mensajeExcepcion) {
     myNex.writeStr("page page 4");
     myNex.writeStr("t1.txt", mensajeExcepcion);
     digitalWrite(pinRele, HIGH);
+    delay(100);
     
   }
 }
@@ -108,8 +111,8 @@ void loop()
   if(temperaturaSensor == NAN) exception("Fallo en el sensor de temperatura");
   //temperaturaSensor = TEMP;
   modoSeleccionado = myNex.readNumber("cb0.val");
-    switch (modoSeleccionado)
-    {
+  switch (modoSeleccionado)
+  {
     case 0:
       if (myNex.readNumber("sw0.val") == 1) {
         if (timerMain.isStopped() == true)
@@ -148,12 +151,11 @@ void loop()
         timerMain.start();
         tiempoRestante = programas[programaSeleccionado].tiempo;
       }
-      tiempoRestante -= timerMain.getElapsedTime();
       myNex.writeNum("n0.val", tiempoRestante);
       if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
       else {
         myNex.writeNum("sw0.val", 0);
-        digitalWrite(pinRele, HIGH);
+        //digitalWrite(pinRele, HIGH);
         }
     }
     else {
