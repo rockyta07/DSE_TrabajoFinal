@@ -38,7 +38,7 @@ void updateHeaterState(int temperaturaSel)
   temperaturaSensor = (int) mlx.readObjectTempC();
   if (temperaturaSensor < temperaturaSel)
     digitalWrite(pinRele,LOW); // Encendemos la resistencia
-  else if (temperaturaSensor >= temperaturaSel + 2)
+  else if (temperaturaSensor >= temperaturaSel + 1)
     digitalWrite(pinRele, HIGH); // Apgamos la resistencia
 
 }
@@ -64,7 +64,7 @@ void exception(String mensajeExcepcion) {
 
 void updateTime() {
  tiempoRestante--;
- if(programaSeleccionado == 1 && temperaturaDeseada < programas[programaSeleccionado].tempObj) temperaturaDeseada += programas[programaSeleccionado].progresion;  //Actualizamos la curva
+ if(modoSeleccionado == 1 && temperaturaDeseada < programas[programaSeleccionado].tempObj) temperaturaDeseada += programas[programaSeleccionado].progresion;  //Actualizamos la curva
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +153,7 @@ void loop()
         tiempoRestante = programas[programaSeleccionado].tiempo;
         temperaturaDeseada = temperaturaSensor;
       }
+      timerMain.update();
       myNex.writeNum("n0.val", tiempoRestante);
       myNex.writeNum("n5.val", temperaturaDeseada);
       if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
