@@ -45,20 +45,19 @@ void updateHeaterState(int temperaturaSel)
 
 void safetyWatchdog() {
     if(temperaturaSensor > 150) {
-      myNex.writeStr("page page 3");
+      myNex.writeStr("page 2");
       digitalWrite(pinRele, HIGH);
       delay(100);
+      while(1);
     }
   }
 
 void exception(String mensajeExcepcion) {
-  while(true) {
-    myNex.writeStr("page page 4");
+    myNex.writeStr("page 3");
     myNex.writeStr("t1.txt", mensajeExcepcion);
     digitalWrite(pinRele, HIGH);
     delay(100);
-    
-  }
+    while(1);
 }
 
 
@@ -97,10 +96,10 @@ void setup()
   programas[1].progresion = 1;
   programas[1].tiempo = 60;
  /****FIBRA DE VIDIRIO****/  
-  programas[1].nombre = "F Vidrio";
-  programas[1].tempObj = 125;
-  programas[1].progresion = 1;
-  programas[1].tiempo = 60;
+  programas[2].nombre = "F Vidrio";
+  programas[2].tempObj = 125;
+  programas[2].progresion = 2;
+  programas[2].tiempo = 60;
    
 }
 
