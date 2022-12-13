@@ -5,9 +5,6 @@
 
 #define pinRele 4
 
-///////// Para probar sin horno /////////
-#define TEMP 60 // En grados
-/////////////////////////////////////////
 
 ////////////////////////////////// VARIABLES //////////////////////////////////
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
@@ -24,7 +21,6 @@ struct Programa
 Programa* programas = (Programa*) malloc(10 * sizeof(Programa)); // Array que almacena las curvas
 // Variables globales
 Timer timerMain;
-Timer timerCurva;
 int temperaturaSensor;
 int temperaturaDeseada;
 long tiempoRestante;
@@ -53,12 +49,19 @@ void safetyWatchdog() {
     digitalWrite(pinRele, HIGH);
   }
 
-void updateCurveTemp() {
-  temperaturaDeseada += programas[programaSeleccionado].progresion;  
+void exception(String mensajeExcepcion) {
+  while(true) {
+    myNex.writeStr("page page 4");
+    myNex.writeStr("t1.txt", mensajeExcepcion);
+    digitalWrite(pinRele, HIGH);
+    
+  }
 }
+
 
 void updateTime() {
  tiempoRestante--;
+ if(programaSeleccionado == 1) temperaturaDeseada += programas[programaSeleccionado].progresion;  //Actualizamos la curva
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -70,13 +73,12 @@ void setup()
 
   // TIMERS
   timerMain.setInterval(60000);
-  timerCurva.setInterval(60000);
   timerMain.setCallback(updateTime);
-  timerCurva.setCallback(updateCurveTemp);
 
   Serial.begin(9600);
 
-  if (!mlx.begin()) falloSeguridad = true; 
+  if (!mlx.begin()) exception("No se ha podido inicializar el sensor de temperatura");
+
 
   modoSeleccionado = 0; // modo selecionado 0 - normal 1 - curvas
 
@@ -86,13 +88,24 @@ void setup()
   programas[0].tempObj = 90;
   programas[0].progresion = 1;
    programas[0].tiempo = 90;
-  /****OTRO****/
+  /****BIAXIAL****/
+  programas[1].nombre = "biaxial";
+  programas[1].tempObj = 135;
+  programas[1].progresion = 1;
+  programas[1].tiempo = 60;
+ /****FIBRA DE VIDIRIO****/  
+  programas[1].nombre = "F Vidrio";
+  programas[1].tempObj = 125;
+  programas[1].progresion = 1;
+  programas[1].tiempo = 60;
+   
 }
 
 void loop()
 {
-  
+  safetyWatchdog();
   temperaturaSensor = (int) mlx.readObjectTempC();
+  if(temperaturaSensor == NAN) exception("Fallo en el sensor de temperatura");
   //temperaturaSensor = TEMP;
   modoSeleccionado = myNex.readNumber("cb0.val");
     switch (modoSeleccionado)
@@ -108,7 +121,6 @@ void loop()
         myNex.writeNum("n2.val", tiempoRestante);
         temperaturaDeseada = myNex.readNumber("n0.val");
         if (tiempoRestante > 0) updateHeaterState(temperaturaDeseada);
-        
         else
         {
           //updateHeaterState(0); //Desactivamos el calefactor por seguridad
@@ -117,8 +129,7 @@ void loop()
         } 
       }
       else {
-        //updateHeaterState(0); //Desactivamos el calefactor por seguridad
-        myNex.writeNum("sw0.val", 0);
+        digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
         timerMain.stop(); //Reseteamos el temporizador
       }
       break;
@@ -135,7 +146,6 @@ void loop()
       if (timerMain.isStopped() == true)
       {
         timerMain.start();
-        timerCurva.start();
         tiempoRestante = programas[programaSeleccionado].tiempo;
       }
       tiempoRestante -= timerMain.getElapsedTime();
@@ -144,21 +154,19 @@ void loop()
       else {
         myNex.writeNum("sw0.val", 0);
         digitalWrite(pinRele, HIGH);
-        
-        
         }
     }
     else {
         //updateHeaterState(0); //Desactivamos el calefactor por seguridad
         timerMain.stop();
-        timerCurva.stop();
-        myNex.writeNum("sw0.val", 0);
+        digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
       }
      break;
     
     }
     myNex.NextionListen();  
     myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
+    
     delay(100);
     //myNex.writeNum("sw0.val", 0);
     // temperaturaDeseada = myNex.readNumber("n0.val"); // Solo lo hacemos en el setup se ajusta automaticamente a 90
