@@ -28,15 +28,16 @@ n2.val -> Minutes Left
 */
 
 struct point {
-  long temp_C; // Target temperature in Celsius
-  long time_s; // Target time in seconds
+  long celsius; // Target temperature in Celsius
+  long minutes; // Target time in seconds
 };
 
 #define MAX_POINTS
 
 struct curve { // Name and Array of time/temperature points to follow
   String name; // Name of the curve
-  point points[MAX_POINTS]; // Array with points to follow
+  int points; // Number of points to follow
+  point point[MAX_POINTS]; // Array with points to follow
 };
 
 // Create timer with ms resolution
@@ -66,16 +67,16 @@ void set_heater(int target_celsius) {
     digitalWrite(RELAY_PIN, RELAY_OFF);
 }
 
-void temp_watchdog(int temp_C) {
+void temp_watchdog(int celsius) {
   /*
   IF VALUE OUT OF NORMAL RANGE, CUT RELAY, ERROR IN DISPLAY, sleep 1 second
   */
 
-  if ((temp_C <= 0) || (temp_C > 150)) {
+  if ((celsius <= 0) || (celsius > 150)) {
     display.writeStr("page 2");
     digitalWrite(RELAY_PIN, RELAY_OFF);
     delay(1000);
-  } else if (temp_C == NAN){
+  } else if (celsius == NAN){
     exception("Fallo en el sensor de temperatura");
   }
 }
@@ -113,6 +114,14 @@ void manual_mode() {
   }
 }
 
+void curve_mode() {
+  /*
+  Starts reading the 
+  */
+
+
+}
+
 void setup() {
   display.begin(9600);
   pinMode(RELAY_PIN, OUTPUT);
@@ -121,6 +130,24 @@ void setup() {
   Serial.begin(9600);
 
   if (!temp_sensor.begin()) exception("No se ha podido inicializar el sensor de temperatura");
+
+  sensor_celsius = (int)temp_sensor.readObjectTempC();
+  // Define curves
+  curve biaxial;
+  biaxial.name = "Biaxial: 85ºC 1.5h, 120ºC 1h";
+  biaxial.points = 4;
+  // Calentar a 2ºC/min hasta 85ºC
+  biaxial.point[0].celsius = 85;
+  biaxial.point[0].minutes = (85 - sensor_celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  // Mantener 85ºC 1.5h
+  biaxial.point[1].celsius = 85;
+  biaxial.point[1].minutes = biaxial.point[0].minutes + 1.5 * 60;
+  // Calentar 2ºC/min hasta 120ºC
+  biaxial.point[2].celsius = 120;
+  biaxial.point[2].minutes = biaxial.point[1].minutes + (biaxial.point[2].celsius - biaxial.point[1].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  // Mantener 120ºC 1h
+  biaxial.point[3].celsius = 120;
+  biaxial.point[3].minutes = biaxial.point[2].minutes + 60;
 }
 
 void loop() {
@@ -146,6 +173,7 @@ void loop() {
         auto manual_mode_task = timer.every(60000, manual_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
         break;
       case 1:  // CURVAS
+        auto curve_mode_task = timer.every(60000, curve_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
         break;
     }
   }
