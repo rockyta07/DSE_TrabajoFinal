@@ -1,7 +1,8 @@
+#include <TimeLib.h>
+
 #include <EasyNextionLibrary.h>
 #include <trigger.h>
 #include <Adafruit_MLX90614.h>
-#include <timer.h>
 
 #define pinRele 4
 
@@ -13,20 +14,20 @@ EasyNex myNex(Serial);
 struct Programa
 {
   String nombre;   // Tipo de programa
-  int tempObj[10]; // En grados
-  int tiempo[10];      // En minutos
-  int progresion[10];  // En grados/minuto
+  int tempObj; // En grados
+  int tiempo;      // En minutos
+  int progresionAsc;  // En grados/minuto
+  int tempFinal;
+  int progresionDesc;
 };
 
-Programa* programas = (Programa*) malloc(10 * sizeof(Programa)); // Array que almacena las curvas
-// Variables globales
-Timer timerMain;
 int temperaturaSensor;
 int temperaturaDeseada;
-long tiempoActual = 0;
-int posicionPrograma = 0;
+long tiempoFin;
+long tiempoRestante;
+bool haEmpezado = false;
 int modoSeleccionado;
-int programaSeleccionado;
+int statusCurvas = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -62,30 +63,14 @@ void exception(String mensajeExcepcion) {
 }
 
 
-void updateTime() {
- tiempoActual++;
- if(modoSeleccionado == 1) {
-    if(temperaturaDeseada < programas[programaSeleccionado].tempObj[posicionPrograma])
-    {
-    temperaturaDeseada += programas[programaSeleccionado].progresion[posicionPrograma];  //Actualizamos la curva
-    }
-  if(programas[programaSeleccionado].tiempo < tiempoActual) {
-    posicionPrograma++;
-    timerMain.stop();
-    }
- }  
-}
 ///////////////////////////////////////////////////////////////////////////////
 
 void setup()
 {
+  setTime(0);
   myNex.begin(9600);
   pinMode(pinRele, OUTPUT);    // Rele
   digitalWrite(pinRele, HIGH); // Abrimos el rele por seguridad
-
-  // TIMERS
-  timerMain.setInterval(60000);
-  timerMain.setCallback(updateTime);
 
   Serial.begin(9600);
 
@@ -93,29 +78,6 @@ void setup()
 
 
   modoSeleccionado = 0; // modo selecionado 0 - normal 1 - curvas
-
-  // Declaramos los programas en el array progrmas
-  /****FIBRA****/
-  programas[0].nombre = "Programa";
-  programas[0].tempObj[0] = 30;
-  programas[0].tempObj[1] = 60;
-  programas[0].progresion[0] = 10;
-  programas[0].progresion[1] = 10;
-  programas[0].tiempo[0] = 5;
-  programas[0].tiempo[1] = 5;
-  /****BIAXIAL***
-  programas[1].nombre = "Gurit";
-  programas[1].tempObj = 135;
-  programas[1].progresion = 2;
-  programas[1].tiempo = 60;
- /****FIBRA DE VIDIRIO***
-  programas[2].nombre = "F Vidrio";
-  programas[2].tempObj = 125;
-  programas[2].progresion = 2;
-  programas[2].tiempo = 60;
-  /**CURVA SOFISTICADA*
-  programas[3].curva = {{85,1,120},{160,1, 120}}; //(Grados, progresion, tiempo) */
-   
 }
 
 void loop()
@@ -128,68 +90,114 @@ void loop()
   switch (modoSeleccionado)
   {
     case 0:
-    int tiempoTotal;
       if (myNex.readNumber("sw0.val") == 1) {
-        if (timerMain.isStopped() == true) 
-        {
-          timerMain.start();
-          tiempoTotal = myNex.readNumber("n2.val"); // Leemos pantalla y lo pasamos a minutos
-        }
-        timerMain.update();
-        myNex.writeNum("n2.val", tiempoActual);
-        temperaturaDeseada = myNex.readNumber("n0.val");
-        if (tiempoTotal < tiempoActual) updateHeaterState(temperaturaDeseada);
-        else
-        {
+        if(tiempoFin >= 0) {
+          tiempoRestante = (now() - tiempoFin)/60;
+          myNex.writeNum("n2.val", (tiempoFin - now())/60);
+          temperaturaDeseada = myNex.readNumber("n0.val");
+          if (now() < tiempoFin) updateHeaterState(temperaturaDeseada);
+          else
+          {
           //updateHeaterState(0); //Desactivamos el calefactor por seguridad
           myNex.writeNum("sw0.val", 0);
-          tiempoActual = 0;
           digitalWrite(pinRele, HIGH); // Como el tiempo ha terminado reseteamos el switch a 0.
-        } 
+          } 
+        }
+        else {
+          updateHeaterState(temperaturaDeseada);          
+        }
+        
       }
       else {
-        timerMain.stop(); //Reseteamos el temporizador
+        if(myNex.readNumber("n2.val") < 0) {
+            tiempoFin = myNex.readNumber("n2.val")*60 + now();          
+        } 
+        else tiempoFin = -1;
         digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
       }
       break;
   case 1: // CURVAS
-   /*Indicar programa*/
-    programaSeleccionado = myNex.readNumber("cb1.val");  
-
-    boolean empiezaTimer = false;
-      myNex.writeNum("n2.val", programas[programaSeleccionado].tempObj[posicionPrograma]);
-      myNex.writeNum("n3.val", programas[programaSeleccionado].progresion[posicionPrograma]);
-      myNex.writeNum("n4.val", programas[programaSeleccionado].tiempo[posicionPrograma]); 
-    
-  
+   struct Programa miPrograma;
     if (myNex.readNumber("sw0.val") == 1) {
-     
-      if (timerMain.isStopped() == true && empiezaTimer == true)
-      {
-        timerMain.start();
-        tiempoActual = programas[programaSeleccionado].tiempo[posicionPrograma];
-        temperaturaDeseada = temperaturaSensor;
+      switch (statusCurvas) {
+        case 0:       
+          if(haEmpezado == false) {
+            tiempoFin = now() + 60;
+            temperaturaDeseada = temperaturaSensor;
+            haEmpezado = true;
+          }
+
+          if(temperaturaSensor < miPrograma.tempObj) {
+            if(tiempoFin < now()) {
+              temperaturaDeseada += miPrograma.progresionAsc;
+              tiempoFin = now() + 60;
+            }
+            updateHeaterState(temperaturaDeseada);
+            
+          }
+          else {
+            statusCurvas = 1;
+            haEmpezado = false;
+          }
+          break;
+
+        case 1:
+            if(haEmpezado == false) {
+              haEmpezado = true;
+              tiempoFin = now() + miPrograma.tiempo*60;
+              
+            }
+            if (tiempoFin < now()) {
+              updateHeaterState(miPrograma.tempObj);
+            }
+            else {
+              statusCurvas = 2;
+              haEmpezado = false;
+            }
+            break;
+        case 2:
+          if(haEmpezado == false) {
+            tiempoFin = now() + 60;
+            temperaturaDeseada = temperaturaSensor;
+            haEmpezado = true;
+          }
+
+          if(temperaturaSensor > miPrograma.tempFinal) {
+            if(tiempoFin < now()) {
+              temperaturaDeseada -= miPrograma.progresionDesc;
+              tiempoFin = now() + 60;
+            }
+            updateHeaterState(temperaturaDeseada);
+          }
+          else {
+            statusCurvas = 3;
+            haEmpezado = false;
+             myNex.writeNum("sw0.val", 0);
+            digitalWrite(pinRele, HIGH);
+            
+          }
+          break;
       }
-      if(empiezaTimer = true) timerMain.update();
-      if(temperaturaSensor >= programas[programaSeleccionado].tempObj[posicionPrograma] - 1 )empiezaTimer = true;
-      
-      myNex.writeNum("n0.val", tiempoActual);
-      myNex.writeNum("n5.val", temperaturaDeseada);
-      if (tiempoActual < programas[programaSeleccionado].tiempo[posicionPrograma]) updateHeaterState(temperaturaDeseada);
-      else if(empiezaTimer != false) {
-        myNex.writeNum("sw0.val", 0);
-        digitalWrite(pinRele, HIGH);
-        }
     }
     else {
-        //updateHeaterState(0); //Desactivamos el calefactor por seguridad
-        timerMain.stop();
-        digitalWrite(pinRele, HIGH); //Desactivamos el elemento calefactor por seguridad
+       miPrograma.tempObj = myNex.readNumber("n2.val");
+       miPrograma.progresionAsc = myNex.readNumber("n3.val");
+       miPrograma.tiempo = myNex.readNumber("n4.val");
+       miPrograma.tempFinal = myNex.readNumber("n6.val");
+       miPrograma.progresionDesc = myNex.readNumber("n2.val");
+       statusCurvas = 0;
+       temperaturaDeseada = 0;
+       tiempoFin = 0;
+      digitalWrite(pinRele, HIGH);
       }
-      
-     break;
-    
+      myNex.writeNum("n1.val", (uint32_t) temperaturaDeseada);
+      myNex.writeNum("n5.val", (uint32_t) temperaturaDeseada);
+      if(statusCurvas == 2) myNex.writeNum("n0.val", (uint32_t) (tiempoFin - now())/60);
+
+
+      break;
     }
+
     myNex.NextionListen();  
     myNex.writeNum("n1.val", (uint32_t) temperaturaSensor);
     
