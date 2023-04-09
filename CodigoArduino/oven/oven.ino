@@ -1,20 +1,23 @@
 #include <EasyNextionLibrary.h>
 #include <trigger.h>
 #include <Adafruit_MLX90614.h>
-#include <arduino-timer.h> //#include <TimerOne.h> //#include <timer.h>
+#include <arduino-timer.h> //#include <TimerOne.h> //#include <timer.h> #<timeLib.h>
 
 
 // CONFIGURATION CONSTANTS
-#define RELAY_PIN 4  // Signal pin to the relay. 5V = OFF = CUT, 0V = ON = ALLOW
+#define RELAY_PIN 13  // Signal pin to the relay. 5V = OFF = CUT, 0V = ON = ALLOW
 //#define HEATER_DELAY   // Delay in miliseconds (60000 means every minute)
 #define RELAY_OFF HIGH
-#define RELAY_ON LOW
+#define RELAY_ON LOW // Hay que dar tierra
 
 /*
 Update the display at least every second
 Update the relay once every minute approx (to not wear it)
+https://github.com/rockyta07/DSE_TrabajoFinal/tree/main
+TODO check temp_sensor
+TODO think redundancy if sensor goes crazy
 
-
+TODO test curva enfriamiento
 */
 
 
@@ -45,7 +48,7 @@ struct curve { // Name and Array of time/temperature points to follow
 auto timer = timer_create_default();  // auto means deduce variable type
 
 int sensor_celsius;
-int mode = 0; // 0: manual,
+int mode = 1; // 0: manual,
 int programaSeleccionado; // TODO REMOVE, EACH PROGRAM IS A MODE. SIMPLER.
 
 curve biaxial;
@@ -61,7 +64,8 @@ void set_heater(int target_celsius) {
   Otherwise, turns the resistor OFF.
 
   */
-  int sensor_celsius = (int)temp_sensor.readObjectTempC();
+  //int sensor_celsius = (int)temp_sensor.readObjectTempC();
+  int sensor_celsius = 25;
   if (sensor_celsius < target_celsius)
     digitalWrite(RELAY_PIN, RELAY_ON);
   else if (sensor_celsius >= target_celsius)
@@ -130,6 +134,7 @@ void curve_mode() {
     // TIME ENDED.
     digitalWrite(RELAY_PIN, RELAY_OFF); // Heater OFF
     display.writeNum("sw0.val", 0); // Display toggle OFF
+    display.writeNum("n0.val", 0); // Display 0ºC
     timer.cancel(); // End all the tasks of the timer
   } else {
     // Still work to do
@@ -149,6 +154,7 @@ void curve_mode() {
     int target_celsius = interpolate(minutes_passed, biaxial.point[i-1].minutes, biaxial.point[i-1].celsius, biaxial.point[i].minutes, biaxial.point[i].celsius);
     // TODO write minutes_passed or graph, GUI.
     set_heater(target_celsius);
+    display.writeNum("n0.val", target_celsius); // Display the temperature
   }
   minutes_passed++;
 }
@@ -160,29 +166,33 @@ void setup() {
 
   Serial.begin(9600);
 
-  if (!temp_sensor.begin()) exception("No se ha podido inicializar el sensor de temperatura", true);
+  //if (!temp_sensor.begin()) exception("No se ha podido inicializar el sensor de temperatura", true);
 
   ////////// CURVES ///////////
   biaxial.name = "Biaxial: 2ºC/min, 85ºC 1.5h, 120ºC 1h";
   biaxial.points = 5;
   // Punto inicial
-  biaxial.point[0].celsius = (int)temp_sensor.readObjectTempC();
+  biaxial.point[0].celsius = sensor_celsius; //(int)temp_sensor.readObjectTempC();
   biaxial.point[0].minutes = 0;
   // Calentar a 2ºC/min hasta 85ºC
   biaxial.point[1].celsius = 85;
-  biaxial.point[1].minutes = (85 - biaxial.point[0].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  biaxial.point[1].minutes = biaxial.point[0].minutes + (85 - biaxial.point[0].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
   // Mantener 85ºC 1.5h
   biaxial.point[2].celsius = 85;
-  biaxial.point[2].minutes = biaxial.point[0].minutes + 1.5 * 60;
+  biaxial.point[2].minutes = biaxial.point[1].minutes + 1.5 * 60;
   // Calentar 2ºC/min hasta 120ºC
   biaxial.point[3].celsius = 120;
-  biaxial.point[3].minutes = biaxial.point[1].minutes + (biaxial.point[2].celsius - biaxial.point[1].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  biaxial.point[3].minutes = biaxial.point[2].minutes + (biaxial.point[3].celsius - biaxial.point[2].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
   // Mantener 120ºC 1h
   biaxial.point[4].celsius = 120;
-  biaxial.point[4].minutes = biaxial.point[2].minutes + 60;
+  biaxial.point[4].minutes = biaxial.point[3].minutes + 60;
+  // Enfriar a 2ºC/min hasta 60ºC
+  biaxial.point[5].celsius = 60;
+  biaxial.point[5].minutes = biaxial.point[4].minutes + (biaxial.point[4].celsius - biaxial.point[5].celsius) * (1/2);
 }
 
 void loop() {
+  digitalWrite(RELAY_PIN, RELAY_OFF);
   // Nextion touch response
   display.NextionListen();
   // Update timer status and check whether arrived at setpoint
@@ -198,6 +208,8 @@ void loop() {
   display.writeNum("sw0.val", 0);
 
   // IF TOGGLE ON BUT TIMER OFF -> SET THE TIMER -> STARTS A TASK
+  Serial.println(display.readNumber("sw0.val") == 1);
+  Serial.println(timer.empty());
   if ((display.readNumber("sw0.val") == 1) && timer.empty()) {
     switch (mode) {
       case 0:  // MANUAL MODE - SET TARGET TEMPERATURE AND TIME UNTIL OFF.
