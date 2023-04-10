@@ -158,9 +158,10 @@ void loop()
               tiempoFin = now() + miPrograma.tiempo*60;
               
             }
-            if (tiempoFin > now()) {
-              updateHeaterState(miPrograma.tempObj);
-            }
+            tiempoRestante = (now() - tiempoFin)/60;
+            myNex.writeNum("n0.val", (tiempoFin - now())/60);
+            temperaturaDeseada = miPrograma.tempObj;
+            if (now() < tiempoFin) updateHeaterState(temperaturaDeseada);
             else {
               statusCurvas = 2;
               haEmpezado = false;
@@ -175,7 +176,7 @@ void loop()
 
           if(temperaturaSensor > miPrograma.tempFinal) {
             if(tiempoFin < now()) {
-              temperaturaDeseada -= miPrograma.progresionDesc;
+              temperaturaDeseada = temperaturaDeseada - miPrograma.progresionDesc;
               tiempoFin = now() + 60;
             }
             updateHeaterState(temperaturaDeseada);
@@ -195,14 +196,13 @@ void loop()
        miPrograma.progresionAsc = myNex.readNumber("n3.val");
        miPrograma.tiempo = myNex.readNumber("n4.val");
        miPrograma.tempFinal = myNex.readNumber("n6.val");
-       miPrograma.progresionDesc = myNex.readNumber("n2.val");
+       miPrograma.progresionDesc = myNex.readNumber("n7.val");
        statusCurvas = 0;
        tiempoFin = 0;
       digitalWrite(pinRele, HIGH);
       }
       myNex.writeNum("n1.val", (uint32_t) temperaturaDeseada);
       myNex.writeNum("n5.val", (uint32_t) temperaturaDeseada);
-      if(statusCurvas == 2) myNex.writeNum("n0.val", (uint32_t) (tiempoFin - now())/60);
 
 
       break;
