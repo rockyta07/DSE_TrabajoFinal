@@ -21,6 +21,11 @@ https://github.com/rockyta07/DSE_TrabajoFinal/tree/main
 
 
 # DISPLAY (Nextion)
+toggle.val -> ON/OFF TOGGLE
+remaining.val -> Minutes Left
+mode.val -> Mode
+
+
 display.writeNum("{name}.val", 0);
 where {name} is:
 - mode switcher (ComboBox): mode
@@ -38,12 +43,6 @@ Show:
 
 ////////////////////////////////// VARIABLES //////////////////////////////////
 EasyNex display(Serial); // Display
-/*
-sw0.val -> ON/OFF TOGGLE
-n2.val -> Minutes Left
-cb0.val -> Mode
-
-*/
 
 struct point {
   long celsius; // Target temperature in Celsius
@@ -64,6 +63,7 @@ auto timer = timer_create_default();  // auto means deduce variable type
 int sensor_celsius;
 int mode = 1; // 0: manual,
 int programaSeleccionado; // TODO REMOVE, EACH PROGRAM IS A MODE. SIMPLER.
+int target_celsius;
 
 curve cur;
 
@@ -118,19 +118,19 @@ void manual_mode() {
   Updates the time variable in code and the display
   TODO SEPARATE minutes_left--; from this function, so this one can go fast?
   */
-  static long minutes_left = display.readNumber("n2.val");
+  static long minutes_left = display.readNumber("remaining.val");
   minutes_left--;
 
   if (minutes_left == 0){
     // TIME ENDED.
     digitalWrite(RELAY_PIN, RELAY_OFF); // Heater OFF
-    display.writeNum("sw0.val", 0); // Display toggle OFF
+    display.writeNum("toggle.val", 0); // Display toggle OFF
     timer.cancel(); // End all the tasks of the timer
-    display.writeNum("n2.val", minutes_left);
+    display.writeNum("remaining.val", minutes_left);
   } else {
     // STILL WORK TO DO
-    display.writeNum("n2.val", minutes_left);
-    int target_celsius = display.readNumber("temp.val");
+    display.writeNum("remaining.val", minutes_left);
+    target_celsius = display.readNumber("temp.val");
     set_heater(target_celsius);
   }
 }
@@ -222,14 +222,14 @@ void loop() {
   // If crazy, error
   temp_watchdog(sensor_celsius);
   // Read the mode from the nextion display
-  mode = display.readNumber("cb0.val");
+  mode = display.readNumber("mode.val");
 
-  display.writeNum("sw0.val", 0);
+  display.writeNum("toggle.val", 0);
 
   // IF TOGGLE ON BUT TIMER OFF -> SET THE TIMER -> STARTS A TASK
-  Serial.println(display.readNumber("sw0.val") == 1);
+  Serial.println(display.readNumber("toggle.val") == 1);
   Serial.println(timer.empty());
-  if ((display.readNumber("sw0.val") == 1) && timer.empty()) {
+  if ((display.readNumber("toggle.val") == 1) && timer.empty()) {
     switch (mode) {
       case 0:  // MANUAL MODE - SET TARGET TEMPERATURE AND TIME UNTIL OFF.
         auto manual_mode_task = timer.every(60000, manual_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
@@ -238,10 +238,13 @@ void loop() {
         auto curve_mode_task = timer.every(60000, curve_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
         break;
     }
+  } else if (display.readNumber("toggle.val") == 0) {
+    // If toggle OFF
+    timer.cancel(); // End all the tasks of the timer. Interrupt any works in progress.
   }
 }
 
-int interpolate(int t, int t1, int T1, int t2, int T2){
+int interpolate(int t, int t1, int T1, int t2, int T2) {
   /*
   t is the current time, t1 and T1 the time and temperature of the first point, t2 and T2 the same for the next point
 
