@@ -140,7 +140,7 @@ void loop()
 
           if(temperaturaSensor < miPrograma.tempObj) {
             if(tiempoFin < now()) {
-              temperaturaDeseada = miPrograma.progresionAsc + (int) thermocouple.readCelsius();
+              temperaturaDeseada = miPrograma.progresionAsc + temperaturaDeseada;
               tiempoFin = now() + 60;
             }
             updateHeaterState(temperaturaDeseada);
@@ -158,7 +158,7 @@ void loop()
               tiempoFin = now() + miPrograma.tiempo*60;
               
             }
-            if (tiempoFin < now()) {
+            if (tiempoFin > now()) {
               updateHeaterState(miPrograma.tempObj);
             }
             else {
@@ -197,7 +197,6 @@ void loop()
        miPrograma.tempFinal = myNex.readNumber("n6.val");
        miPrograma.progresionDesc = myNex.readNumber("n2.val");
        statusCurvas = 0;
-       temperaturaDeseada = 0;
        tiempoFin = 0;
       digitalWrite(pinRele, HIGH);
       }
