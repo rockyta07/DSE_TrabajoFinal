@@ -13,7 +13,7 @@
 
 Adafruit_MAX31855 thermocouple(MAXCLK, MAXCS, MAXDO);
 
-#define pinRele 4
+#define pinRele 2
 
 
 ////////////////////////////////// VARIABLES //////////////////////////////////
@@ -47,9 +47,9 @@ void updateHeaterState(int temperaturaSel)
 {
   temperaturaDeseada = temperaturaSel;
   temperaturaSensor = (int) thermocouple.readCelsius();
-  if (temperaturaSensor < temperaturaSel)
+  if (temperaturaSensor < temperaturaSel - 4)
     digitalWrite(pinRele, LOW); // Encendemos la resistencia
-  else if (temperaturaSensor >= temperaturaSel + 1)
+  else if (temperaturaSensor >= temperaturaSel)
     digitalWrite(pinRele, HIGH); // Apgamos la resistencia
 
 }
