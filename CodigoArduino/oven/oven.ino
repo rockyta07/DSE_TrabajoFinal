@@ -14,15 +14,29 @@
 Update the display at least every second
 Update the relay once every minute approx (to not wear it)
 https://github.com/rockyta07/DSE_TrabajoFinal/tree/main
-TODO check temp_sensor
-TODO think redundancy if sensor goes crazy
 
-TODO test curva enfriamiento
+# TODO
+- Think redundancy if sensor goes crazy
+- Test curva enfriamiento
+
+
+# DISPLAY (Nextion)
+display.writeNum("{name}.val", 0);
+where {name} is:
+- mode switcher (ComboBox): mode
+- Toggle (Switch, to turn on, starts the timer for the curve): toggle
+
+Show:
+- actual temp: temp
+- target temp: target
+- elapsed time: elapsed
+- remaining time: remaining
+- total time: total
+
 */
 
 
 ////////////////////////////////// VARIABLES //////////////////////////////////
-Adafruit_MLX90614 temp_sensor = Adafruit_MLX90614(); // Temperature sensor
 EasyNex display(Serial); // Display
 /*
 sw0.val -> ON/OFF TOGGLE
@@ -40,7 +54,7 @@ struct point {
 
 struct curve { // Name and Array of time/temperature points to follow
   String name; // Name of the curve
-  int points; // Number of points to follow
+  int points; // Amount of points to follow
   point point[MAX_POINTS]; // Array with points to follow
 };
 
@@ -51,7 +65,7 @@ int sensor_celsius;
 int mode = 1; // 0: manual,
 int programaSeleccionado; // TODO REMOVE, EACH PROGRAM IS A MODE. SIMPLER.
 
-curve biaxial;
+curve cur;
 
 ////////////////////////////////// FUNCTIONS //////////////////////////////////
 void set_heater(int target_celsius) {
@@ -64,7 +78,6 @@ void set_heater(int target_celsius) {
   Otherwise, turns the resistor OFF.
 
   */
-  //int sensor_celsius = (int)temp_sensor.readObjectTempC();
   int sensor_celsius = 25;
   if (sensor_celsius < target_celsius)
     digitalWrite(RELAY_PIN, RELAY_ON);
@@ -77,7 +90,7 @@ void temp_watchdog(int celsius) {
   IF VALUE OUT OF NORMAL RANGE, CUT RELAY, ERROR IN DISPLAY, sleep 1 second
   */
 
-  if ((celsius <= 0) || (celsius > 150)) {
+  if ((celsius <= 0) || (celsius > 200)) {
     display.writeStr("page 2");
     digitalWrite(RELAY_PIN, RELAY_OFF);
     delay(1000);
@@ -117,7 +130,7 @@ void manual_mode() {
   } else {
     // STILL WORK TO DO
     display.writeNum("n2.val", minutes_left);
-    int target_celsius = display.readNumber("n0.val");
+    int target_celsius = display.readNumber("temp.val");
     set_heater(target_celsius);
   }
 }
@@ -125,23 +138,24 @@ void manual_mode() {
 void curve_mode() {
   /*
   Starts reading the curve and going linearly from point to point as time goes on.
-  TODO PASS A CURVE TO MAKE THIS FUNCTION GENERIC, instead of using biaxial directly
+  TODO PASS A CURVE TO MAKE THIS FUNCTION GENERIC, instead of using cur directly
   */
   static long minutes_passed = 0;
 
   // If time passed > than time of final point
-  if (minutes_passed > biaxial.point[biaxial.points - 1].minutes) {
+  if (minutes_passed > cur.point[cur.points - 1].minutes) {
     // TIME ENDED.
     digitalWrite(RELAY_PIN, RELAY_OFF); // Heater OFF
-    display.writeNum("sw0.val", 0); // Display toggle OFF
-    display.writeNum("n0.val", 0); // Display 0ºC
+    display.writeNum("toggle.val", 0); // Display toggle OFF
+    display.writeNum("temp.val", target_celsius); // Display the temperature
+    display.writeNum("target.val", 0); // Display target of 0ºC
     timer.cancel(); // End all the tasks of the timer
   } else {
     // Still work to do
 
     // Find the next point to follow
     int i = 0;
-    while (biaxial.point[i].minutes < minutes_passed) {
+    while (cur.point[i].minutes < minutes_passed) {
       // When the point is in the future, exit the while loop
       i++;
     }
@@ -151,12 +165,19 @@ void curve_mode() {
     }
 
     // Now i is the next point
-    int target_celsius = interpolate(minutes_passed, biaxial.point[i-1].minutes, biaxial.point[i-1].celsius, biaxial.point[i].minutes, biaxial.point[i].celsius);
+    int target_celsius = interpolate(minutes_passed, cur.point[i-1].minutes, cur.point[i-1].celsius, cur.point[i].minutes, cur.point[i].celsius);
     // TODO write minutes_passed or graph, GUI.
     set_heater(target_celsius);
-    display.writeNum("n0.val", target_celsius); // Display the temperature
+    display.writeNum("temp.val", target_celsius); // Display the temperature
+    display.writeNum("target.val", target_celsius); // Display target of target_celsius
   }
+
+  // Update time
   minutes_passed++;
+  display.writeNum("elapsed.val", minutes_passed);
+  display.writeNum("total.val", cur.point[cur.points-1]);
+  display.writeNum("remaining.val", cur.point[cur.points-1] - minutes_passed);
+  
 }
 
 void setup() {
@@ -166,29 +187,27 @@ void setup() {
 
   Serial.begin(9600);
 
-  //if (!temp_sensor.begin()) exception("No se ha podido inicializar el sensor de temperatura", true);
-
   ////////// CURVES ///////////
-  biaxial.name = "Biaxial: 2ºC/min, 85ºC 1.5h, 120ºC 1h";
-  biaxial.points = 5;
+  cur.name = "cur: 2ºC/min, 85ºC 1.5h, 120ºC 1h";
+  cur.points = 6;
   // Punto inicial
-  biaxial.point[0].celsius = sensor_celsius; //(int)temp_sensor.readObjectTempC();
-  biaxial.point[0].minutes = 0;
+  cur.point[0].celsius = sensor_celsius;
+  cur.point[0].minutes = 0;
   // Calentar a 2ºC/min hasta 85ºC
-  biaxial.point[1].celsius = 85;
-  biaxial.point[1].minutes = biaxial.point[0].minutes + (85 - biaxial.point[0].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
-  // Mantener 85ºC 1.5h
-  biaxial.point[2].celsius = 85;
-  biaxial.point[2].minutes = biaxial.point[1].minutes + 1.5 * 60;
+  cur.point[1].celsius = 85;
+  cur.point[1].minutes = cur.point[0].minutes + (85 - cur.point[0].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  // Mantener a 85ºC 1.5h
+  cur.point[2].celsius = 85;
+  cur.point[2].minutes = cur.point[1].minutes + 1.5 * 60;
   // Calentar 2ºC/min hasta 120ºC
-  biaxial.point[3].celsius = 120;
-  biaxial.point[3].minutes = biaxial.point[2].minutes + (biaxial.point[3].celsius - biaxial.point[2].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
+  cur.point[3].celsius = 120;
+  cur.point[3].minutes = cur.point[2].minutes + (cur.point[3].celsius - cur.point[2].celsius) * (1/2); // Temp difference * (1 min / 2 ºC)
   // Mantener 120ºC 1h
-  biaxial.point[4].celsius = 120;
-  biaxial.point[4].minutes = biaxial.point[3].minutes + 60;
+  cur.point[4].celsius = 120;
+  cur.point[4].minutes = cur.point[3].minutes + 60;
   // Enfriar a 2ºC/min hasta 60ºC
-  biaxial.point[5].celsius = 60;
-  biaxial.point[5].minutes = biaxial.point[4].minutes + (biaxial.point[4].celsius - biaxial.point[5].celsius) * (1/2);
+  cur.point[5].celsius = 60;
+  cur.point[5].minutes = cur.point[4].minutes + (cur.point[4].celsius - cur.point[5].celsius) * (1/2);
 }
 
 void loop() {
@@ -198,7 +217,7 @@ void loop() {
   // Update timer status and check whether arrived at setpoint
   timer.tick();
   // Read sensor temperature
-  sensor_celsius = (int)temp_sensor.readObjectTempC();
+  sensor_celsius = 25; // TODO THERMOCOUPLE
   display.writeNum("n1.val", (uint32_t)sensor_celsius);
   // If crazy, error
   temp_watchdog(sensor_celsius);
@@ -215,7 +234,7 @@ void loop() {
       case 0:  // MANUAL MODE - SET TARGET TEMPERATURE AND TIME UNTIL OFF.
         auto manual_mode_task = timer.every(60000, manual_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
         break;
-      case 1:  // BIAXIAL CURVE
+      case 1:  // cur CURVE
         auto curve_mode_task = timer.every(60000, curve_mode); // Update the time every DELAY in miliseconds, then the function to call periodically
         break;
     }
