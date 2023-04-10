@@ -2,13 +2,22 @@
 
 #include <EasyNextionLibrary.h>
 #include <trigger.h>
-#include <Adafruit_MLX90614.h>
+
+
+#include <SPI.h>
+#include "Adafruit_MAX31855.h"
+
+#define MAXDO   3
+#define MAXCS   4
+#define MAXCLK  5
+
+Adafruit_MAX31855 thermocouple(MAXCLK, MAXCS, MAXDO);
 
 #define pinRele 4
 
 
 ////////////////////////////////// VARIABLES //////////////////////////////////
-Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+
 EasyNex myNex(Serial);
 
 struct Programa
@@ -37,9 +46,9 @@ int statusCurvas = 0;
 void updateHeaterState(int temperaturaSel)
 {
   temperaturaDeseada = temperaturaSel;
-  temperaturaSensor = (int) mlx.readObjectTempC();
+  temperaturaSensor = (int) thermocouple.readCelsius();
   if (temperaturaSensor < temperaturaSel)
-    digitalWrite(pinRele,LOW); // Encendemos la resistencia
+    digitalWrite(pinRele, LOW); // Encendemos la resistencia
   else if (temperaturaSensor >= temperaturaSel + 1)
     digitalWrite(pinRele, HIGH); // Apgamos la resistencia
 
@@ -74,7 +83,7 @@ void setup()
 
   Serial.begin(9600);
 
-  if (!mlx.begin()) exception("No se ha podido inicializar el sensor de temperatura");
+  if (!thermocouple.begin()) exception("No se ha podido inicializar el sensor de temperatura");
 
 
   modoSeleccionado = 0; // modo selecionado 0 - normal 1 - curvas
@@ -83,7 +92,7 @@ void setup()
 void loop()
 {
   safetyWatchdog();
-  temperaturaSensor = (int) mlx.readObjectTempC();
+  temperaturaSensor = (int) thermocouple.readCelsius();
   if(temperaturaSensor == NAN) exception("Fallo en el sensor de temperatura");
   //temperaturaSensor = TEMP;
   modoSeleccionado = myNex.readNumber("cb0.val");
@@ -91,6 +100,7 @@ void loop()
   {
     case 0:
       if (myNex.readNumber("sw0.val") == 1) {
+        
         if(tiempoFin >= 0) {
           tiempoRestante = (now() - tiempoFin)/60;
           myNex.writeNum("n2.val", (tiempoFin - now())/60);
@@ -109,7 +119,7 @@ void loop()
         
       }
       else {
-        if(myNex.readNumber("n2.val") < 0) {
+        if(myNex.readNumber("n2.val") > 0) {
             tiempoFin = myNex.readNumber("n2.val")*60 + now();          
         } 
         else tiempoFin = -1;
@@ -122,14 +132,15 @@ void loop()
       switch (statusCurvas) {
         case 0:       
           if(haEmpezado == false) {
-            tiempoFin = now() + 60;
-            temperaturaDeseada = temperaturaSensor;
             haEmpezado = true;
+            tiempoFin = now() + 60;
+            temperaturaDeseada = (int) thermocouple.readCelsius();
+            
           }
 
           if(temperaturaSensor < miPrograma.tempObj) {
             if(tiempoFin < now()) {
-              temperaturaDeseada += miPrograma.progresionAsc;
+              temperaturaDeseada = miPrograma.progresionAsc + (int) thermocouple.readCelsius();
               tiempoFin = now() + 60;
             }
             updateHeaterState(temperaturaDeseada);
